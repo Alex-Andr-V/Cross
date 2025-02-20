@@ -1,0 +1,198 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+#include <semaphore.h>
+#include <unistd.h>
+
+#define MAX_STEPS 5  // Количество "клеток" на канате
+#define NUM_BABOONS 10  // Количество бабуинов
+
+sem_t rope[MAX_STEPS];  // Семафоры для каждой "клетки" каната
+pthread_mutex_t direction_mutex = PTHREAD_MUTEX_INITIALIZER;  // Мьютекс для изменения направления
+
+pthread_mutex_t cleaning_mutex = PTHREAD_MUTEX_INITIALIZER; 
+
+pthread_mutex_t rocks_east_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t rocks_west_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+pthread_cond_t direction_cond = PTHREAD_COND_INITIALIZER;    // Условная переменная для ожидания смены направления
+
+int rocks_east = 0;                // Камни на восточной стороне
+int rocks_west = 0;                // Камни на западной стороне
+int current_direction = -1;  // Текущее направление: -1 - нет движения, 0 - восток, 1 - запад
+int cleaning_east = 0;            // Флаг уборки камней на восточной стороне
+int cleaning_west = 0;            // Флаг уборки камней на западной стороне
+
+void clean_rocks(int side) {
+    pthread_mutex_lock(&cleaning_mutex);
+
+    printf("Бабуин начинает убирать камни со стороны %s\n", side == 0 ? "восток" : "запад");
+    if (side == 0) {
+        cleaning_east++;
+    } else {
+        cleaning_west++;
+    }
+
+    sleep(10);  // Имитация уборки камней
+
+    if (side == 0) {
+        rocks_east = 0;
+        cleaning_east--;
+    } else if (side == 1) {
+        rocks_west = 0;
+        cleaning_west--;
+    }
+
+    printf("Камни на стороне %s убраны\n", side == 0 ? "восток" : "запад");
+
+    pthread_mutex_unlock(&cleaning_mutex);
+}
+
+
+void* baboon(void* arg) {
+    int id = *((int*)arg);
+    int direction = id % 2;  // Направление: 0 - восток, 1 - запад
+    if(id >= NUM_BABOONS)
+        direction = 0;
+
+    printf("Бабуин %d хочет идти в направлении %s\n", id, direction == 0 ? "восток" : "запад");
+
+    // Захватываем мьютекс для проверки и изменения направления
+    pthread_mutex_lock(&direction_mutex);
+    
+    // Если текущее направление не совпадает с желаемым, ждем
+    while (current_direction != -1 && current_direction != direction) {
+        pthread_cond_wait(&direction_cond, &direction_mutex);  // Ждем смены направления
+    }
+
+    // Устанавливаем текущее направление
+    if (current_direction == -1) {
+        current_direction = direction;
+    }
+
+    // Освобождаем мьютекс после установки направления
+    pthread_mutex_unlock(&direction_mutex);
+
+    // Пытаемся положить камень
+    if (direction == 0) {
+        pthread_mutex_lock(&rocks_east_mutex);
+        // Проверка, можем ли положить камень
+        if (rocks_east < 3) {
+            rocks_east++;
+            printf("БАБУИН %i ПОЛОЖИЛ КАМЕНЬ НА ВОСТОЧНОЙ СТОРОНЕ, ВСЕГО КАМНЕЙ НА ВОСТОЧНОЙ СТОРОНЕ: %i\n", id, rocks_east);
+            if (rocks_east == 3 && !cleaning_east) {
+                clean_rocks(0);  // Убираем камни (восток)
+                pthread_mutex_lock(&direction_mutex);
+                while (current_direction != -1 && current_direction != direction) {
+                    pthread_cond_wait(&direction_cond, &direction_mutex);  // Ждем смены направления
+                }
+                pthread_mutex_unlock(&direction_mutex);
+                if (rocks_east == 0) {
+                    rocks_east++;
+                    printf("БАБУИН %i ПОЛОЖИЛ КАМЕНЬ НА ВОСТОЧНОЙ СТОРОНЕ, ВСЕГО КАМНЕЙ НА ВОСТОЧНОЙ СТОРОНЕ: %i\n", id, rocks_east);
+                }
+            }
+        }
+        pthread_mutex_unlock(&rocks_east_mutex);
+    } else if (direction == 1) {
+        pthread_mutex_lock(&rocks_west_mutex);
+        // Проверка, можем ли положить камень
+        if (rocks_west < 3) {
+            rocks_west++;
+            printf("БАБУИН %i ПОЛОЖИЛ КАМЕНЬ НА ЗАПАДНОЙ СТОРОНЕ, ВСЕГО КАМНЕЙ НА ЗАПАДНОЙ СТОРОНЕ: %i\n", id, rocks_west);
+            if (rocks_west == 3 && !cleaning_west) {
+                clean_rocks(1);  // Убираем камни (запад)
+                pthread_mutex_lock(&direction_mutex);
+                while (current_direction != -1 && current_direction != direction) {
+                    pthread_cond_wait(&direction_cond, &direction_mutex);  // Ждем смены направления
+                }
+                pthread_mutex_unlock(&direction_mutex);
+                if (rocks_west == 0) {
+                    rocks_west++;
+                    printf("БАБУИН %i ПОЛОЖИЛ КАМЕНЬ НА ЗАПАДНОЙ СТОРОНЕ, ВСЕГО КАМНЕЙ НА ЗАПАДНОЙ СТОРОНЕ: %i\n", id, rocks_west);
+                }
+            }
+        }
+        pthread_mutex_unlock(&rocks_west_mutex);
+    }
+
+    // Движение по канату
+    for (int step = 0; step < MAX_STEPS; step++) {
+        sem_wait(&rope[step]);  // Захватываем текущую "клетку"
+        printf("Бабуин %d на шаге %d (идет с: %s)\n", id, step + 1, direction == 0 ? "востока" : "запада");
+        sleep(1);  // Имитация времени на шаг
+        if (step > 0) {
+            sem_post(&rope[step - 1]);  // Освобождаем предыдущую "клетку"
+        }
+    }
+
+    // Освобождаем последнюю "клетку"
+    sem_post(&rope[MAX_STEPS - 1]);
+
+    printf("Бабуин %d завершил переход\n", id);
+
+    // Проверяем, нужно ли сменить направление
+    pthread_mutex_lock(&direction_mutex);
+    printf("-------------------\n");
+    int is_rope_empty = 1;
+    for (int i = 0; i < MAX_STEPS; i++) {
+        // Проверяем свободен ли каждый элемент
+        if (sem_trywait(&rope[i]) != 0) {  // Если клетка занята
+            is_rope_empty = 0;
+            break;
+        }
+        sem_post(&rope[i]);  // Возвращаем семафор в исходное состояние
+    }
+
+    if (is_rope_empty) {
+        printf("-----КАНАТ СВОБОДЕН-----\n");
+        current_direction = -1;  // Сбрасываем направление
+        pthread_cond_broadcast(&direction_cond);  // Уведомляем всех ожидающих бабуинов
+    }
+
+    pthread_mutex_unlock(&direction_mutex);
+    free(arg);
+    return NULL;
+}
+
+int main() {
+    pthread_t baboons[15];  // Потоки для бабуинов
+    int* baboon_ids[15];
+
+    // Инициализация семафоров
+    for (int i = 0; i < MAX_STEPS; i++) {
+        sem_init(&rope[i], 0, 1);  // Каждая "клетка" может вместить только одного бабуина
+    }
+
+    // Создание потоков для бабуинов
+    for (int i = 0; i < NUM_BABOONS; i++) {
+        baboon_ids[i] = malloc(sizeof(int));
+        *baboon_ids[i] = i;
+        pthread_create(&baboons[i], NULL, baboon, baboon_ids[i]);
+    }
+    sleep(20);
+    for (int i = NUM_BABOONS; i < 15; i++) {
+        baboon_ids[i] = malloc(sizeof(int));
+        *baboon_ids[i] = i;
+        pthread_create(&baboons[i], NULL, baboon, baboon_ids[i]);
+    }
+
+    // Ожидание завершения всех потоков
+    for (int i = 0; i < 15; i++) {
+        pthread_join(baboons[i], NULL);
+    }
+
+    // Уничтожение семафоров
+    for (int i = 0; i < MAX_STEPS; i++) {
+        sem_destroy(&rope[i]);
+    }
+
+    // Уничтожение мьютекса и условной переменной
+    pthread_mutex_destroy(&direction_mutex);
+    pthread_mutex_destroy(&rocks_east_mutex);
+    pthread_mutex_destroy(&rocks_west_mutex);
+    pthread_cond_destroy(&direction_cond);
+    pthread_mutex_destroy(&cleaning_mutex);
+
+    return 0;
+}
