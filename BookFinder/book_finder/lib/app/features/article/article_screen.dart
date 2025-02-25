@@ -12,8 +12,10 @@ import 'package:go_router/go_router.dart';
 import 'package:book_finder/lib/globals.dart' as globals;
 
 class ArticleScreen extends StatefulWidget {
-  const ArticleScreen({super.key});
+  //const ArticleScreen({super.key, required String bookId});
+  final String bookId;
 
+  const ArticleScreen({required this.bookId});
   @override
   State<ArticleScreen> createState() => _ArticleScreenState();
 }

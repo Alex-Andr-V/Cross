@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "871815657196",
+    "firebase_url": "https://bookfinder-965f7-default-rtdb.europe-west1.firebasedatabase.app",
+    "project_id": "bookfinder-965f7",
+    "storage_bucket": "bookfinder-965f7.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:871815657196:android:346640e0bce69f715e17c9",
+        "android_client_info": {
+          "package_name": "com.example.book_finder"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCuHJlheu10Q-sFhhZpdceoVZ4NXsKUH-g"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
