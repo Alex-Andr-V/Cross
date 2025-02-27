@@ -1,3 +1,5 @@
+import 'package:book_finder/FavoritesScreen.dart';
+import 'package:book_finder/favorites_bloc.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:book_finder/app/features/article/article_screen.dart';
@@ -42,6 +44,10 @@ final GoRouter router = GoRouter(
         return ArticleScreen(bookId: bookId); // Передаем bookId в ArticleScreen
       },
     ),
+        GoRoute(
+      path: '/favorites',
+      builder: (context, state) => FavoritesScreen(),
+    ),
   ],
 );
 
@@ -68,6 +74,9 @@ class BooksFinderApp extends StatelessWidget {
       providers: [
         BlocProvider(
           create: (context) => AuthBloc(AuthService()),
+        ),
+         BlocProvider(
+          create: (context) => FavoritesBloc()..add(LoadFavoritesEvent()),
         ),
         // Добавьте другие BlocProvider, если они есть
       ],

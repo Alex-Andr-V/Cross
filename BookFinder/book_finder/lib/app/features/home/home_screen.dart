@@ -8,6 +8,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:book_finder/di/di.dart';
 import 'package:book_finder/app/features/auth/auth_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:book_finder/favorites_service.dart'; // Импортируем сервис для работы с избранным
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -33,12 +34,17 @@ class _HomeScreenState extends State<HomeScreen> {
           title: const Text('Главная'),
           actions: [
             IconButton(
+              icon: const Icon(Icons.favorite),
+              onPressed: () {
+                // Переход на экран избранного
+                context.go('/favorites');
+              },
+            ),
+            IconButton(
               icon: const Icon(Icons.logout),
               onPressed: () {
                 // Отправляем событие выхода в AuthBloc
                 context.read<AuthBloc>().add(LogoutRequested());
-                                     // context.go('/login');    //    context.go('/login');
-
               },
             ),
           ],
